@@ -4,7 +4,7 @@ on:
   # ✅ 建议：一天触发一次（脚本内部会跑 6 小时）
   schedule:
     # UTC 22:00 = 北京时间 06:00
-    - cron: '0 4 * * *'
+    - cron: '0 4 */20 * *'
 
   # ✅ 允许你在 GitHub 页面手动点 Run
   workflow_dispatch:

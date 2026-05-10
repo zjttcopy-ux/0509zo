@@ -1,4 +1,4 @@
-name: Zo Auto Flow
+name: Zo Full Auto
 
 on:
   workflow_dispatch:
@@ -12,19 +12,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ Node 环境 (Playwright)
+      # ✅ Node（Playwright）
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
       - name: Install Playwright
-        run: npm install playwright
+        run: |
+          npm install playwright
+          npx playwright install --with-deps
 
-      - name: Install Browsers
-        run: npx playwright install --with-deps
-
-      # ✅ Python 环境（读邮箱）
+      # ✅ Python（处理邮箱）
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -33,33 +32,16 @@ jobs:
       - name: Install Python deps
         run: pip install requests
 
-      # ✅ 🔁 主循环逻辑（6小时 = 36轮）
-      - name: Run Loop (6 hours)
+      # ✅ Step 1：发送邮件
+      - name: Send Mail (Playwright)
+        run: node script.js
+
+      # ✅ Step 2：等待邮件到达
+      - name: Wait for mail
+        run: sleep 20
+
+      # ✅ Step 3：读取邮件 + 激活（调用 activate.js）
+      - name: Read & Activate
         env:
           EMAIL_PASSWORD: ${{ secrets.PASSWORD }}
-        run: |
-          echo "🚀 Start workflow loop"
-          
-          for ((i=1; i<=36; i++))
-          do
-            echo "=================================="
-            echo "🔁 Loop $i / 36"
-            date
-            echo "=================================="
-
-            echo "▶ Step 1: Run Playwright"
-            timeout 300 node script.js || echo "⚠️ Playwright failed"
-
-            echo "▶ Step 2: Wait for email"
-            sleep 200
-
-            echo "▶ Step 3: Activate"
-            timeout 180 python read_and_activate.py || echo "⚠️ Activate failed"
-
-            if [ $i -lt 36 ]; then
-              echo "⏳ Waiting 10 minutes before next loop..."
-              sleep 600
-            fi
-          done
-
-          echo "✅ Finished all loops"
+        run: python read_and_activate.py

@@ -51,7 +51,7 @@ jobs:
             timeout 300 node script.js || echo "⚠️ Playwright failed"
 
             echo "▶ Step 2: Wait for email"
-            sleep 20
+            sleep 200
 
             echo "▶ Step 3: Activate"
             timeout 180 python read_and_activate.py || echo "⚠️ Activate failed"

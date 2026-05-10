@@ -3,9 +3,7 @@ import email
 import re
 import os
 import time
-import requests
-from datetime import datetime, timedelta
-from email.utils import parsedate_to_datetime
+import subprocess
 
 EMAIL = "ttt0090@gmail.com"
 PASSWORD = os.environ.get("EMAIL_PASSWORD")
@@ -13,12 +11,14 @@ PASSWORD = os.environ.get("EMAIL_PASSWORD")
 IMAP_SERVER = "imap.gmail.com"
 
 
+# ✅ 只匹配 zo 激活链接
 def extract_link(text):
     pattern = r'https://www\.zo\.computer/api/email-login/verify[^\s]+'
     match = re.search(pattern, text)
     return match.group(0) if match else None
 
 
+# ✅ 安全解析邮件内容（避免编码报错）
 def get_body(msg):
     body = ""
 
@@ -42,16 +42,6 @@ def get_body(msg):
     return body
 
 
-# ✅ ✅ 精确判断：只要最近1小时
-def is_within_last_hour(msg):
-    try:
-        msg_date = parsedate_to_datetime(msg["Date"])
-        now = datetime.now(msg_date.tzinfo)
-        return (now - msg_date) <= timedelta(hours=1)
-    except:
-        return False
-
-
 def run():
     print("📡 连接邮箱...")
 
@@ -59,52 +49,64 @@ def run():
     mail.login(EMAIL, PASSWORD)
     mail.select("inbox")
 
-    now = datetime.utcnow()
-    one_hour_ago = now - timedelta(hours=1)
-
-    # ✅ IMAP 只查今天/可能的昨天（缩小范围）
-    since_date = one_hour_ago.strftime("%d-%b-%Y")
-    print("🔎 搜索起始日期:", since_date)
-
-    status, messages = mail.search(None, f'(SINCE "{since_date}" UNSEEN)')
+    # ✅ 查今天邮件（避免扫描整个历史）
+    status, messages = mail.search(None, '(SINCE "10-May-2026")')
     mail_ids = messages[0].split()
 
-    print(f"📬 候选邮件数量: {len(mail_ids)}")
+    print(f"📬 搜索结果数量: {len(mail_ids)}")
+
+    # ✅ ✅ 关键：只取最新10封邮件（避免卡死）
+    mail_ids = mail_ids[-10:]
+
+    print(f"✅ 实际处理数量: {len(mail_ids)}")
 
     for num in mail_ids:
         status, data = mail.fetch(num, "(RFC822)")
         msg = email.message_from_bytes(data[0][1])
 
-        # ✅ ✅ 核心过滤：仅最近1小时
-        if not is_within_last_hour(msg):
-            continue
-
-        print("✅ 命中最近1小时邮件")
-
         body = get_body(msg)
 
         link = extract_link(body)
 
-        if link:
-            print("✅ 找到链接:", link)
+        if not link:
+            print("⏭ 没有匹配链接，跳过")
+            continue
 
-            try:
-                r = requests.get(link, timeout=10)
-                print("🌐 状态:", r.status_code)
+        print("✅ 找到激活链接：")
+        print(link)
 
-                # ✅ 删除处理过邮件
-                mail.store(num, "+FLAGS", "\\Deleted")
+        # ✅ ✅ ✅ 关键：调用 Playwright 点击按钮
+        print("🚀 启动浏览器执行激活...")
 
-            except Exception as e:
-                print("❌ 请求失败:", e)
+        try:
+            result = subprocess.run(
+                ["node", "activate.js", link],
+                capture_output=True,
+                text=True
+            )
+
+            print("👉 activate.js 输出：")
+            print(result.stdout)
+
+            if result.stderr:
+                print("⚠️ 错误信息：")
+                print(result.stderr)
+
+            # ✅ 删除已处理邮件（避免重复）
+            mail.store(num, "+FLAGS", "\\Deleted")
+            print("🗑 已删除邮件")
+
+        except Exception as e:
+            print("❌ 执行 activate.js 失败:", e)
 
     mail.expunge()
     mail.logout()
 
-    print("✅ 完成")
+    print("✅ 全部完成")
 
 
-print("⏳ 等待邮件到达...")
+# ✅ 等待邮件到达
+print("⏳ 等待邮件...")
 time.sleep(20)
 
 run()

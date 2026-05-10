@@ -4,6 +4,8 @@ import re
 import os
 import time
 import requests
+from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
 
 EMAIL = "ttt0090@gmail.com"
 PASSWORD = os.environ.get("EMAIL_PASSWORD")
@@ -18,15 +20,13 @@ def extract_link(text):
     return match.group(0) if match else None
 
 
-# ✅ ✅ 安全解析邮件（支持多编码，已修复报错）
+# ✅ 安全解析邮件
 def get_mail_body(msg):
     body = ""
 
     if msg.is_multipart():
         for part in msg.walk():
-            content_type = part.get_content_type()
-
-            if content_type in ["text/plain", "text/html"]:
+            if part.get_content_type() in ["text/plain", "text/html"]:
                 payload = part.get_payload(decode=True)
 
                 if payload:
@@ -52,15 +52,33 @@ def get_mail_body(msg):
     return body
 
 
+def is_recent(msg, minutes=60):
+    """✅ 判断是否是最近N分钟邮件"""
+    date_tuple = msg.get("Date")
+    if not date_tuple:
+        return False
+
+    try:
+        msg_date = parsedate_to_datetime(date_tuple)
+
+        # 转成 UTC 对比
+        now = datetime.now(msg_date.tzinfo)
+        delta = now - msg_date
+
+        return delta <= timedelta(minutes=minutes)
+
+    except Exception as e:
+        print("⚠️ 时间解析失败:", e)
+        return False
+
+
 def run():
     print("📡 连接邮箱...")
 
     mail = imaplib.IMAP4_SSL(IMAP_SERVER)
     mail.login(EMAIL, PASSWORD)
-
     mail.select("inbox")
 
-    # ✅ 只找未读邮件
     status, messages = mail.search(None, "UNSEEN")
     mail_ids = messages[0].split()
 
@@ -70,9 +88,14 @@ def run():
         status, data = mail.fetch(num, "(RFC822)")
         msg = email.message_from_bytes(data[0][1])
 
+        # ✅ ✅ 关键过滤：只要最近1小时
+        if not is_recent(msg, minutes=60):
+            print("⏩ 跳过旧邮件")
+            continue
+
         body = get_mail_body(msg)
 
-        print("📩 邮件解析完成")
+        print("📩 解析邮件完成")
 
         link = extract_link(body)
 
@@ -82,27 +105,25 @@ def run():
 
             try:
                 r = requests.get(link, timeout=10)
-                print("🌐 访问状态码:", r.status_code)
+                print("🌐 状态码:", r.status_code)
 
-                # ✅ 无论成功/失败都删除（避免重复）
+                # ✅ 删除已处理邮件
                 mail.store(num, "+FLAGS", "\\Deleted")
-                print("🗑 邮件已删除")
+                print("🗑 已删除邮件")
 
             except Exception as e:
                 print("❌ 请求失败:", e)
 
         else:
-            print("⚠️ 没有找到 zo 激活链接，跳过")
+            print("⚠️ 没找到 zo 链接")
 
-    # ✅ 真正删除
     mail.expunge()
-
     mail.logout()
-    print("✅ 邮箱处理完成")
+
+    print("✅ 处理完成")
 
 
-# ✅ 等待邮件到达
-print("⏳ 等待邮件到达...")
+print("⏳ 等待邮件...")
 time.sleep(20)
 
 run()

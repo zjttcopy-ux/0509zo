@@ -8,33 +8,58 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # ✅ 拉代码
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # ✅ Node (Playwright)
-      - uses: actions/setup-node@v4
+      # ✅ Node 环境 (Playwright)
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - run: npm install playwright
-      - run: npx playwright install --with-deps
+      - name: Install Playwright
+        run: npm install playwright
 
-      # ✅ Python（读邮箱）
-      - uses: actions/setup-python@v5
+      - name: Install Browsers
+        run: npx playwright install --with-deps
+
+      # ✅ Python 环境（读邮箱）
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      - run: pip install requests
+      - name: Install Python deps
+        run: pip install requests
 
-      # ✅ 1️⃣ 触发邮箱发送
-      - name: Run Playwright
-        run: node script.js
-
-      # ✅ 2️⃣ 等邮件
-      - name: Wait
-        run: sleep 20
-
-      # ✅ 3️⃣ 读取邮件 + 激活
-      - name: Activate
+      # ✅ 🔁 主循环逻辑（6小时 = 36轮）
+      - name: Run Loop (6 hours)
         env:
           EMAIL_PASSWORD: ${{ secrets.PASSWORD }}
-        run: python read_and_activate.py
+        run: |
+          echo "🚀 Start workflow loop"
+          
+          for ((i=1; i<=36; i++))
+          do
+            echo "=================================="
+            echo "🔁 Loop $i / 36"
+            date
+            echo "=================================="
+
+            echo "▶ Step 1: Run Playwright"
+            timeout 300 node script.js || echo "⚠️ Playwright failed"
+
+            echo "▶ Step 2: Wait for email"
+            sleep 20
+
+            echo "▶ Step 3: Activate"
+            timeout 180 python read_and_activate.py || echo "⚠️ Activate failed"
+
+            if [ $i -lt 36 ]; then
+              echo "⏳ Waiting 10 minutes before next loop..."
+              sleep 600
+            fi
+          done
+
+          echo "✅ Finished all loops"

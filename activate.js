@@ -4,7 +4,7 @@ const CONFIG = {
   workspaceDomain: 'ttt0090.zo.computer',
   workspaceName: 'ttt0090',
 
-  waitAfterEnterWorkspace: 30000,
+  waitAfterEnterWorkspace: 60000,
 
   headless: true,
 };

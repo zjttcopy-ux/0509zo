@@ -4,7 +4,6 @@ const CONFIG = {
   workspaceDomain: 'ttt0090.zo.computer',
   workspaceName: 'ttt0090',
 
-  // 如果进入工作区后网站会自动唤醒机器，这里等待一段时间即可
   waitAfterEnterWorkspace: 30000,
 
   headless: true,
@@ -34,8 +33,33 @@ async function safeScreenshot(page, path) {
   }
 }
 
+async function clickSafely(locator, name) {
+  try {
+    console.log(`👉 尝试普通点击：${name}`);
+    await locator.click({
+      timeout: 5000,
+    });
+    return true;
+  } catch (err) {
+    console.log(`⚠️ 普通点击失败：${name}`);
+  }
+
+  try {
+    console.log(`👉 尝试强制点击：${name}`);
+    await locator.click({
+      timeout: 5000,
+      force: true,
+    });
+    return true;
+  } catch (err) {
+    console.log(`⚠️ 强制点击失败：${name}`);
+  }
+
+  return false;
+}
+
 /**
- * 选择 Zo Computer 工作区
+ * 新版工作区点击逻辑
  */
 async function selectWorkspaceIfNeeded(page) {
   console.log('🔎 检查是否出现工作区选择页面...');
@@ -43,11 +67,13 @@ async function selectWorkspaceIfNeeded(page) {
   const title = page.getByText('Your Zo Computers', { exact: false });
   const hint = page.getByText('Choose a workspace to continue', { exact: false });
   const domainText = page.getByText(CONFIG.workspaceDomain, { exact: false });
+  const nameText = page.getByText(CONFIG.workspaceName, { exact: false });
 
   const hasWorkspacePage =
     await isVisible(title, 5000) ||
     await isVisible(hint, 5000) ||
-    await isVisible(domainText, 5000);
+    await isVisible(domainText, 5000) ||
+    await isVisible(nameText, 5000);
 
   if (!hasWorkspacePage) {
     console.log('ℹ️ 未检测到工作区选择页面');
@@ -60,72 +86,119 @@ async function selectWorkspaceIfNeeded(page) {
   await safeScreenshot(page, 'workspace-before-click.png');
 
   /**
-   * 第一优先级：
-   * 找包含完整域名 ttt0090.zo.computer 的卡片。
+   * 第一种：
+   * 直接点击完整域名文字。
    */
-  const workspaceCardByDomain = page.locator('div').filter({
-    hasText: CONFIG.workspaceDomain,
-  }).first();
+  if (await isVisible(domainText, 5000)) {
+    console.log(`✅ 页面上看到了完整域名：${CONFIG.workspaceDomain}`);
 
-  if (await isVisible(workspaceCardByDomain, 8000)) {
-    await workspaceCardByDomain.click();
+    const clickedDomain = await clickSafely(domainText.first(), CONFIG.workspaceDomain);
 
-    console.log(`✅ 已点击工作区：${CONFIG.workspaceDomain}`);
+    if (clickedDomain) {
+      console.log(`✅ 已点击完整域名：${CONFIG.workspaceDomain}`);
 
-    await page.waitForLoadState('domcontentloaded').catch(() => {});
-    await page.waitForTimeout(5000);
+      await page.waitForTimeout(8000);
+      await safeScreenshot(page, 'workspace-after-click.png');
 
-    await safeScreenshot(page, 'workspace-after-click.png');
-
-    return true;
+      return true;
+    }
   }
 
   /**
-   * 第二优先级：
-   * 找任意包含 .zo.computer 的工作区。
+   * 第二种：
+   * 点击工作区名称 ttt0090。
    */
-  console.log('⚠️ 未找到完整域名，尝试点击第一个 .zo.computer 工作区');
+  if (await isVisible(nameText, 5000)) {
+    console.log(`✅ 页面上看到了工作区名称：${CONFIG.workspaceName}`);
 
-  const workspaceCardByZoDomain = page.locator('div').filter({
-    hasText: /\.zo\.computer/,
-  }).first();
+    const clickedName = await clickSafely(nameText.first(), CONFIG.workspaceName);
 
-  if (await isVisible(workspaceCardByZoDomain, 8000)) {
-    const cardText = await workspaceCardByZoDomain.innerText().catch(() => '');
-    console.log('📌 找到工作区卡片：');
-    console.log(cardText);
+    if (clickedName) {
+      console.log(`✅ 已点击工作区名称：${CONFIG.workspaceName}`);
 
-    await workspaceCardByZoDomain.click();
+      await page.waitForTimeout(8000);
+      await safeScreenshot(page, 'workspace-after-click.png');
 
-    console.log('✅ 已点击第一个 .zo.computer 工作区');
-
-    await page.waitForLoadState('domcontentloaded').catch(() => {});
-    await page.waitForTimeout(5000);
-
-    await safeScreenshot(page, 'workspace-after-click.png');
-
-    return true;
+      return true;
+    }
   }
 
   /**
-   * 第三优先级：
-   * 兜底点击 ttt0090。
+   * 第三种：
+   * 用 JavaScript 找包含 ttt0090.zo.computer 的元素，然后点击最近的父级。
    */
-  console.log(`⚠️ 未找到 .zo.computer，尝试点击名称：${CONFIG.workspaceName}`);
+  try {
+    console.log('👉 尝试用 JS 查找并点击工作区元素...');
 
-  const workspaceByName = page.getByText(CONFIG.workspaceName, { exact: false });
+    const jsClicked = await page.evaluate((domain) => {
+      const all = Array.from(document.querySelectorAll('*'));
 
-  if (await isVisible(workspaceByName, 8000)) {
-    await workspaceByName.click();
+      const target = all.find(el => {
+        const text = el.textContent || '';
+        return text.includes(domain);
+      });
 
-    console.log(`✅ 已点击工作区名称：${CONFIG.workspaceName}`);
+      if (!target) {
+        return false;
+      }
 
-    await page.waitForLoadState('domcontentloaded').catch(() => {});
-    await page.waitForTimeout(5000);
+      let el = target;
 
-    await safeScreenshot(page, 'workspace-after-click.png');
+      for (let i = 0; i < 8; i++) {
+        if (!el) break;
+
+        const rect = el.getBoundingClientRect();
+
+        if (rect.width > 200 && rect.height > 40) {
+          el.click();
+          return true;
+        }
+
+        el = el.parentElement;
+      }
+
+      target.click();
+      return true;
+    }, CONFIG.workspaceDomain);
+
+    if (jsClicked) {
+      console.log('✅ JS 已点击工作区元素');
+
+      await page.waitForTimeout(8000);
+      await safeScreenshot(page, 'workspace-after-js-click.png');
+
+      return true;
+    }
+
+    console.log('⚠️ JS 没找到完整域名元素');
+  } catch (err) {
+    console.log('⚠️ JS 点击工作区失败');
+  }
+
+  /**
+   * 第四种：
+   * 坐标点击。
+   *
+   * 根据你发的手机截图：
+   * 工作区卡片在页面中部偏上。
+   * viewport 是 390 x 844。
+   * 卡片大约位置：
+   * x = 195
+   * y = 300
+   */
+  try {
+    console.log('👉 尝试坐标点击工作区卡片...');
+
+    await page.mouse.click(195, 300);
+
+    console.log('✅ 已执行坐标点击工作区卡片');
+
+    await page.waitForTimeout(8000);
+    await safeScreenshot(page, 'workspace-after-coordinate-click.png');
 
     return true;
+  } catch (err) {
+    console.log('⚠️ 坐标点击失败');
   }
 
   console.log('❌ 检测到工作区页面，但未能点击工作区');
@@ -134,13 +207,6 @@ async function selectWorkspaceIfNeeded(page) {
   return false;
 }
 
-/**
- * 兼容旧页面：
- * 如果进入后仍然出现 Start machine / Run / 开始 按钮，就点击。
- *
- * 但是现在不会强制等待这个按钮。
- * 找不到按钮也不会报错。
- */
 async function clickStartButtonIfExists(page) {
   console.log('🔎 检查是否还有启动按钮...');
 
@@ -169,9 +235,6 @@ async function clickStartButtonIfExists(page) {
   return true;
 }
 
-/**
- * 主激活流程
- */
 async function run() {
   const activationUrl = process.argv[2];
 
@@ -207,27 +270,14 @@ async function run() {
     await page.waitForTimeout(5000);
     await safeScreenshot(page, 'activate-open.png');
 
-    /**
-     * 新逻辑：
-     * 激活链接打开后，优先处理工作区选择页面。
-     */
     const selectedWorkspace = await selectWorkspaceIfNeeded(page);
 
     if (selectedWorkspace) {
-      console.log('✅ 已进入工作区');
+      console.log('✅ 已点击工作区');
 
-      /**
-       * 进入工作区后不要再强制等 Start machine。
-       * 因为你说离线机器进入工作区后也会自己重新启动。
-       */
       console.log(`⏳ 等待 ${CONFIG.waitAfterEnterWorkspace / 1000} 秒，让网站自动处理机器启动...`);
       await page.waitForTimeout(CONFIG.waitAfterEnterWorkspace);
 
-      /**
-       * 兼容旧页面：
-       * 如果这时候仍然有启动按钮，就点一下。
-       * 如果没有，也算成功，不再报错。
-       */
       await clickStartButtonIfExists(page);
 
       await safeScreenshot(page, 'result.png');
@@ -236,10 +286,6 @@ async function run() {
       return;
     }
 
-    /**
-     * 如果没有出现工作区选择页面，
-     * 说明可能还是旧页面，尝试点击旧的启动按钮。
-     */
     console.log('ℹ️ 未出现工作区选择页，尝试兼容旧启动按钮逻辑');
 
     const clickedStart = await clickStartButtonIfExists(page);
@@ -250,10 +296,6 @@ async function run() {
       return;
     }
 
-    /**
-     * 如果既没有工作区，也没有启动按钮，不直接报失败。
-     * 可能页面已经自动完成。
-     */
     console.log('⚠️ 未发现工作区，也未发现启动按钮');
     console.log('⚠️ 可能已经自动完成，保存截图供检查');
 

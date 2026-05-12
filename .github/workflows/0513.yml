@@ -1,4 +1,38 @@
-      - name: Run Loop12
+name: Zo Full Auto Loop513
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4,10,23 * * *'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Playwright
+        run: |
+          npm install playwright
+          npx playwright install --with-deps
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Python deps
+        run: |
+          pip install requests
+
+      - name: Run Loop
         env:
           EMAIL_PASSWORD: ${{ secrets.PASSWORD }}
         run: |
@@ -25,7 +59,7 @@
                 ;;
               *)
                 echo "ℹ️ 第 $i 次循环：只激活，不执行 tmux"
-                python read_and_activate2.py || echo "⚠️ 激活失败，不影响下一轮"
+                INIT_TMUX=0 python read_and_activate2.py || echo "⚠️ 激活失败，不影响下一轮"
                 ;;
             esac
 

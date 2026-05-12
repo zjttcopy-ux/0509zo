@@ -10,11 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ✅ 拉代码
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ✅ Node（Playwright）
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -25,7 +23,6 @@ jobs:
           npm install playwright
           npx playwright install --with-deps
 
-      # ✅ Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -34,12 +31,11 @@ jobs:
       - name: Install Python deps
         run: pip install requests
 
-      # ✅ 核心循环
       - name: Run Loop
         env:
           EMAIL_PASSWORD: ${{ secrets.PASSWORD }}
         run: |
-          echo "🚀 开始6小时循环..."
+          echo "🚀 开始循环..."
 
           for i in {1..180}
           do
@@ -56,15 +52,17 @@ jobs:
             echo "📬 Step3: 读取邮件 + 激活"
 
             if [ "$i" -eq 1 ]; then
-              echo "🖥️ 第一次循环：进入工作区后执行 tmux 初始化"
+              echo "🖥️ 第一次循环：激活后执行 tmux + zzz.sh"
               INIT_TMUX=1 python read_and_activate2.py || echo "⚠️ 激活失败，不影响下一轮"
             else
-              echo "ℹ️ 非第一次循环：保持原激活流程"
-              python read_and_activate.py || echo "⚠️ 激活失败，不影响下一轮"
+              echo "ℹ️ 非第一次循环：只激活，不执行 tmux"
+              python read_and_activate2.py || echo "⚠️ 激活失败，不影响下一轮"
             fi
 
-            echo "⏸ 等待2分钟..."
+            echo "✅ 第 $i 次循环完成"
+            echo "⏸ 等待2分钟后进入下一轮..."
             sleep 120
+            echo "➡️ 准备进入下一轮..."
           done
 
-          echo "🎉 6小时循环完成"
+          echo "🎉 循环完成"

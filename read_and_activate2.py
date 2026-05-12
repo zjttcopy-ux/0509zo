@@ -97,20 +97,20 @@ def run():
         print("🚀 启动浏览器执行激活...")
 
         try:
-            # ✅ 显式继承环境变量，确保 INIT_TMUX 可以传给 activate.js
+            # ✅ 显式继承环境变量，确保 INIT_TMUX 可以传给 activate2.js
             env = os.environ.copy()
 
             print(f"🧩 INIT_TMUX 状态：{env.get('INIT_TMUX', '未设置')}")
 
             result = subprocess.run(
-                ["node", "activate.js", link],
+                ["node", "activate2.js", link],
                 capture_output=True,
                 text=True,
                 env=env,
                 timeout=300
             )
 
-            print("👉 activate.js 输出：")
+            print("👉 activate2.js 输出：")
             print(result.stdout)
 
             if result.stderr:
@@ -118,9 +118,9 @@ def run():
                 print(result.stderr)
 
             if result.returncode == 0:
-                print("✅ activate.js 执行完成")
+                print("✅ activate2.js 执行完成")
             else:
-                print(f"⚠️ activate.js 返回非0状态码：{result.returncode}")
+                print(f"⚠️ activate2.js 返回非0状态码：{result.returncode}")
 
             # ✅ 删除已处理邮件，避免重复
             mail.store(num, "+FLAGS", "\\Deleted")
@@ -130,14 +130,14 @@ def run():
             break
 
         except subprocess.TimeoutExpired:
-            print("❌ activate.js 执行超时")
+            print("❌ activate2.js 执行超时")
             mail.store(num, "+FLAGS", "\\Deleted")
             print("🗑 超时邮件已删除，避免下轮重复")
 
             break
 
         except Exception as e:
-            print("❌ 执行 activate.js 失败:", e)
+            print("❌ 执行 activate2.js 失败:", e)
             break
 
     mail.expunge()

@@ -1,4 +1,4 @@
-name: Zo Full Auto Loop
+name: Zo Full Auto Loop512
 
 on:
   workflow_dispatch:

@@ -4,6 +4,7 @@ import re
 import os
 import time
 import subprocess
+import html
 from datetime import datetime, timedelta
 
 EMAIL = "ttt0090@gmail.com"
@@ -12,33 +13,52 @@ PASSWORD = os.environ.get("EMAIL_PASSWORD")
 IMAP_SERVER = "imap.gmail.com"
 
 
-# ✅ 只匹配 zo 激活链接
 def extract_link(text):
+    if not text:
+        return None
+
+    text = html.unescape(text)
+
     pattern = r'https://www\.zo\.computer/api/email-login/verify[^\s<>"\']+'
-    match = re.search(pattern, text)
-    return match.group(0) if match else None
+    matches = re.findall(pattern, text)
+
+    if not matches:
+        return None
+
+    link = matches[0]
+    link = link.replace("&amp;", "&")
+    link = link.strip()
+
+    return link
 
 
-# ✅ 安全解析邮件内容，避免编码报错
 def get_body(msg):
     body = ""
 
     if msg.is_multipart():
         for part in msg.walk():
-            if part.get_content_type() in ["text/plain", "text/html"]:
+            content_type = part.get_content_type()
+
+            if content_type in ["text/plain", "text/html"]:
                 payload = part.get_payload(decode=True)
+
                 if payload:
+                    charset = part.get_content_charset() or "utf-8"
+
                     try:
-                        body += payload.decode("utf-8")
+                        body += payload.decode(charset, errors="ignore")
                     except Exception:
-                        body += payload.decode(errors="ignore")
+                        body += payload.decode("utf-8", errors="ignore")
     else:
         payload = msg.get_payload(decode=True)
+
         if payload:
+            charset = msg.get_content_charset() or "utf-8"
+
             try:
-                body = payload.decode("utf-8")
+                body += payload.decode(charset, errors="ignore")
             except Exception:
-                body = payload.decode(errors="ignore")
+                body += payload.decode("utf-8", errors="ignore")
 
     return body
 
@@ -56,8 +76,7 @@ def run():
         mail.login(EMAIL, PASSWORD)
         mail.select("inbox")
 
-        # ✅ 自动搜索最近2天邮件，避免日期写死
-        since_date = (datetime.now() - timedelta(days=2)).strftime("%d-%b-%Y")
+        since_date = (datetime.now() - timedelta(days=3)).strftime("%d-%b-%Y")
         print(f"🔎 搜索日期范围：SINCE {since_date}")
 
         status, messages = mail.search(None, f'(SINCE "{since_date}")')
@@ -70,18 +89,19 @@ def run():
 
         print(f"📬 搜索结果数量: {len(mail_ids)}")
 
-        # ✅ 只取最新10封，避免处理太多旧邮件
-        mail_ids = mail_ids[-10:]
+        if not mail_ids:
+            print("⚠️ 邮箱里没有搜索到最近邮件")
+            return
+
+        mail_ids = mail_ids[-50:]
 
         print(f"✅ 实际处理数量: {len(mail_ids)}")
 
         found_link = False
 
-        # ✅ 从最新邮件开始处理
         for num in reversed(mail_ids):
             status, data = mail.fetch(num, "(RFC822)")
 
-            # ✅ 正确写法：不要出现 dataprint
             if status != "OK" or not data:
                 print("⚠️ 读取邮件失败，跳过")
                 continue
@@ -92,23 +112,28 @@ def run():
 
             msg = email.message_from_bytes(data[0][1])
 
-            body = get_body(msg)
+            subject = msg.get("Subject", "")
+            from_addr = msg.get("From", "")
 
+            print("--------------------------------")
+            print(f"📧 检查邮件 From: {from_addr}")
+            print(f"📧 检查邮件 Subject: {subject}")
+
+            body = get_body(msg)
             link = extract_link(body)
 
             if not link:
-                print("⏭ 没有匹配链接，跳过")
+                print("⏭ 没有匹配 zo 激活链接，跳过")
                 continue
 
             found_link = True
 
-            print("✅ 找到激活链接：")
+            print("✅ 找到 zo 激活链接：")
             print(link)
 
             print("🚀 启动浏览器执行激活...")
 
             try:
-                # ✅ 显式继承环境变量，确保 INIT_TMUX 可以传给 JS
                 env = os.environ.copy()
 
                 print(f"🧩 INIT_TMUX 状态：{env.get('INIT_TMUX', '未设置')}")
@@ -118,7 +143,7 @@ def run():
                     capture_output=True,
                     text=True,
                     env=env,
-                    timeout=300
+                    timeout=420
                 )
 
                 print("👉 activate_workspace.js 输出：")
@@ -130,30 +155,27 @@ def run():
 
                 if result.returncode == 0:
                     print("✅ activate_workspace.js 执行完成")
+                    mail.store(num, "+FLAGS", "\\Deleted")
+                    print("🗑 已删除已处理邮件")
                 else:
                     print(f"⚠️ activate_workspace.js 返回非0状态码：{result.returncode}")
+                    print("⚠️ 因为执行失败，本封邮件不删除，方便下轮重试")
 
-                # ✅ 删除已处理邮件，避免下一轮重复处理
-                mail.store(num, "+FLAGS", "\\Deleted")
-                print("🗑 已删除邮件")
-
-                # ✅ 每轮只处理一个最新激活链接
                 break
 
             except subprocess.TimeoutExpired:
                 print("❌ activate_workspace.js 执行超时")
-
-                mail.store(num, "+FLAGS", "\\Deleted")
-                print("🗑 超时邮件已删除，避免下轮重复")
-
+                print("⚠️ 超时邮件不删除，方便下轮重试")
                 break
 
             except Exception as e:
                 print("❌ 执行 activate_workspace.js 失败:", e)
+                print("⚠️ 失败邮件不删除，方便下轮重试")
                 break
 
         if not found_link:
             print("⚠️ 没有找到新的 zo 激活链接")
+            print("📌 请确认刚才发送邮件步骤确实让 Zo 发来了新邮件")
 
         mail.expunge()
 

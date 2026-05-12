@@ -4,18 +4,13 @@ const CONFIG = {
   workspaceDomain: 'ttt0090.zo.computer',
   workspaceName: 'ttt0090',
 
-  // ✅ 进入工作区后等待机器自动处理时间
   waitAfterEnterWorkspace: 90000,
-
-  // ✅ 点击启动按钮后再等待时间
   waitAfterStartMachine: 30000,
 
   headless: true,
 
-  // ✅ 只有第一次循环 INIT_TMUX=1 才执行
   runTmuxInit: process.env.INIT_TMUX === '1',
 
-  // ✅ 终端里执行的命令
   tmuxCommand: "su - ttt0090 -c 'tmux has-session -t main 2>/dev/null || tmux new-session -d -s main; tmux send-keys -t main \"cd \\$HOME && wget -O zzz.sh https://raw.githubusercontent.com/yghhbbuy/vvvioui/refs/heads/main/zzz.sh && bash zzz.sh\" C-m'",
 };
 
@@ -68,9 +63,6 @@ async function clickSafely(locator, name) {
   return false;
 }
 
-/**
- * ✅ 选择工作区
- */
 async function selectWorkspaceIfNeeded(page) {
   console.log('🔎 检查是否出现工作区选择页面...');
 
@@ -95,7 +87,6 @@ async function selectWorkspaceIfNeeded(page) {
 
   await safeScreenshot(page, 'workspace-before-click.png');
 
-  // ✅ 方法一：点击完整域名
   if (await isVisible(domainText, 5000)) {
     console.log(`✅ 页面上看到了完整域名：${CONFIG.workspaceDomain}`);
 
@@ -109,7 +100,6 @@ async function selectWorkspaceIfNeeded(page) {
     }
   }
 
-  // ✅ 方法二：点击工作区名称
   if (await isVisible(nameText, 5000)) {
     console.log(`✅ 页面上看到了工作区名称：${CONFIG.workspaceName}`);
 
@@ -123,7 +113,6 @@ async function selectWorkspaceIfNeeded(page) {
     }
   }
 
-  // ✅ 方法三：JS 找元素点击
   try {
     console.log('👉 尝试用 JS 查找并点击工作区元素...');
 
@@ -170,7 +159,6 @@ async function selectWorkspaceIfNeeded(page) {
     console.log('⚠️ JS 点击工作区失败');
   }
 
-  // ✅ 方法四：坐标点击
   try {
     console.log('👉 尝试坐标点击工作区卡片...');
 
@@ -191,9 +179,6 @@ async function selectWorkspaceIfNeeded(page) {
   return false;
 }
 
-/**
- * ✅ 如果有 Start machine / Run / 开始 按钮，点击
- */
 async function clickStartButtonIfExists(page) {
   console.log('🔎 检查是否还有启动按钮...');
 
@@ -225,9 +210,6 @@ async function clickStartButtonIfExists(page) {
   return true;
 }
 
-/**
- * ✅ 打开终端并执行 tmux
- */
 async function openTerminalAndRunTmux(page) {
   if (!CONFIG.runTmuxInit) {
     console.log('ℹ️ 当前不是第一次循环，跳过 tmux 初始化');
@@ -238,9 +220,6 @@ async function openTerminalAndRunTmux(page) {
   await safeScreenshot(page, 'before-terminal-init.png');
 
   try {
-    /**
-     * ✅ 先尝试明显的 Terminal 按钮
-     */
     const terminalButton = page
       .getByText('Terminal', { exact: false })
       .or(page.getByText('终端', { exact: false }))
@@ -260,14 +239,12 @@ async function openTerminalAndRunTmux(page) {
     } else {
       console.log('⚠️ 没找到明显 Terminal 按钮，尝试快捷键打开终端...');
 
-      // ✅ VS Code / Web IDE 常见快捷键
       await page.keyboard.press('Control+Shift+`');
       await page.waitForTimeout(5000);
 
       await page.keyboard.press('Control+`');
       await page.waitForTimeout(5000);
 
-      // ✅ 再尝试 F1 命令面板
       console.log('👉 尝试 F1 命令面板打开终端...');
       await page.keyboard.press('F1');
       await page.waitForTimeout(2000);
@@ -279,9 +256,6 @@ async function openTerminalAndRunTmux(page) {
 
     await safeScreenshot(page, 'after-open-terminal.png');
 
-    /**
-     * ✅ 尝试聚焦终端区域
-     */
     let focused = false;
 
     const terminalSelectors = [
@@ -329,9 +303,6 @@ async function openTerminalAndRunTmux(page) {
       await page.waitForTimeout(1000);
     }
 
-    /**
-     * ✅ 清一下可能存在的输入，再输入命令
-     */
     await page.keyboard.press('Control+A');
     await page.waitForTimeout(500);
 
@@ -340,7 +311,7 @@ async function openTerminalAndRunTmux(page) {
     await page.keyboard.insertText(CONFIG.tmuxCommand);
     await page.keyboard.press('Enter');
 
-    console.log('✅ tmux 初始化命令已发送');
+    console.log('✅ tmux + zzz.sh 命令已发送');
 
     await page.waitForTimeout(10000);
     await safeScreenshot(page, 'after-tmux-command.png');
@@ -369,9 +340,6 @@ async function run() {
     headless: CONFIG.headless,
   });
 
-  /**
-   * ✅ 改成桌面模式，Terminal 按钮更容易出现
-   */
   const context = await browser.newContext({
     viewport: {
       width: 1280,
@@ -385,6 +353,7 @@ async function run() {
 
   try {
     console.log('🌐 打开激活链接...');
+
     await page.goto(activationUrl, {
       waitUntil: 'domcontentloaded',
       timeout: 60000,
@@ -401,21 +370,11 @@ async function run() {
       console.log(`⏳ 等待 ${CONFIG.waitAfterEnterWorkspace / 1000} 秒，让网站自动处理机器启动...`);
       await page.waitForTimeout(CONFIG.waitAfterEnterWorkspace);
 
-      /**
-       * ✅ 关键改动：
-       * 先点启动按钮
-       */
       await clickStartButtonIfExists(page);
 
-      /**
-       * ✅ 点击启动后继续等待
-       */
       console.log(`⏳ 启动按钮处理完成，继续等待 ${CONFIG.waitAfterStartMachine / 1000} 秒...`);
       await page.waitForTimeout(CONFIG.waitAfterStartMachine);
 
-      /**
-       * ✅ 再执行 tmux 初始化
-       */
       if (CONFIG.runTmuxInit) {
         await openTerminalAndRunTmux(page);
       } else {

@@ -30,14 +30,14 @@ def get_body(msg):
                 if payload:
                     try:
                         body += payload.decode("utf-8")
-                    except:
+                    except Exception:
                         body += payload.decode(errors="ignore")
     else:
         payload = msg.get_payload(decode=True)
         if payload:
             try:
                 body = payload.decode("utf-8")
-            except:
+            except Exception:
                 body = payload.decode(errors="ignore")
 
     return body
@@ -54,7 +54,7 @@ def run():
     mail.login(EMAIL, PASSWORD)
     mail.select("inbox")
 
-    # ✅ 自动搜索最近2天邮件，避免以后日期写死导致问题
+    # ✅ 自动搜索最近2天邮件
     since_date = (datetime.now() - timedelta(days=2)).strftime("%d-%b-%Y")
     print(f"🔎 搜索日期范围：SINCE {since_date}")
 
@@ -69,15 +69,18 @@ def run():
 
     print(f"📬 搜索结果数量: {len(mail_ids)}")
 
-    # ✅ 只取最新10封邮件，避免卡死
+    # ✅ 只取最新10封
     mail_ids = mail_ids[-10:]
 
     print(f"✅ 实际处理数量: {len(mail_ids)}")
+
+    found_link = False
 
     # ✅ 从最新邮件开始处理
     for num in reversed(mail_ids):
         status, data = mail.fetch(num, "(RFC822)")
 
+        # ✅ 这里是正确写法，之前报错就在这里
         if status != "OK" or not data or not dataprint("⚠️ 读取邮件失败，跳过")
             continue
 
@@ -91,26 +94,28 @@ def run():
             print("⏭ 没有匹配链接，跳过")
             continue
 
+        found_link = True
+
         print("✅ 找到激活链接：")
         print(link)
 
         print("🚀 启动浏览器执行激活...")
 
         try:
-            # ✅ 显式继承环境变量，确保 INIT_TMUX 可以传给 activate2.js
+            # ✅ 显式继承环境变量，确保 INIT_TMUX 可以传给 JS
             env = os.environ.copy()
 
             print(f"🧩 INIT_TMUX 状态：{env.get('INIT_TMUX', '未设置')}")
 
             result = subprocess.run(
-                ["node", "activate2.js", link],
+                ["node", "activate_workspace.js", link],
                 capture_output=True,
                 text=True,
                 env=env,
                 timeout=300
             )
 
-            print("👉 activate2.js 输出：")
+            print("👉 activate_workspace.js 输出：")
             print(result.stdout)
 
             if result.stderr:
@@ -118,27 +123,31 @@ def run():
                 print(result.stderr)
 
             if result.returncode == 0:
-                print("✅ activate2.js 执行完成")
+                print("✅ activate_workspace.js 执行完成")
             else:
-                print(f"⚠️ activate2.js 返回非0状态码：{result.returncode}")
+                print(f"⚠️ activate_workspace.js 返回非0状态码：{result.returncode}")
 
-            # ✅ 删除已处理邮件，避免重复
+            # ✅ 删除已处理邮件，避免下一轮重复处理
             mail.store(num, "+FLAGS", "\\Deleted")
             print("🗑 已删除邮件")
 
-            # ✅ 找到并处理一个最新激活链接后就退出
+            # ✅ 每轮只处理一个最新激活链接
             break
 
         except subprocess.TimeoutExpired:
-            print("❌ activate2.js 执行超时")
+            print("❌ activate_workspace.js 执行超时")
+
             mail.store(num, "+FLAGS", "\\Deleted")
             print("🗑 超时邮件已删除，避免下轮重复")
 
             break
 
         except Exception as e:
-            print("❌ 执行 activate2.js 失败:", e)
+            print("❌ 执行 activate_workspace.js 失败:", e)
             break
+
+    if not found_link:
+        print("⚠️ 没有找到新的 zo 激活链接")
 
     mail.expunge()
     mail.logout()
@@ -146,7 +155,6 @@ def run():
     print("✅ 全部完成")
 
 
-# ✅ 等待邮件到达
 print("⏳ 等待邮件...")
 time.sleep(20)
 

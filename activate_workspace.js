@@ -8,10 +8,8 @@ const CONFIG = {
 
   headless: true,
 
-  // ✅ 只有 yml 第一次循环传入 INIT_TMUX=1 时才执行
   runTmuxInit: process.env.INIT_TMUX === '1',
 
-  // ✅ 进入工作区终端后运行的命令
   tmuxCommand: "su - ttt0090 -c 'tmux new -A -s main'",
 };
 
@@ -46,7 +44,7 @@ async function clickSafely(locator, name) {
       timeout: 5000,
     });
     return true;
-  } catch (err) {
+  } catch {
     console.log(`⚠️ 普通点击失败：${name}`);
   }
 
@@ -57,16 +55,13 @@ async function clickSafely(locator, name) {
       force: true,
     });
     return true;
-  } catch (err) {
+  } catch {
     console.log(`⚠️ 强制点击失败：${name}`);
   }
 
   return false;
 }
 
-/**
- * 新版工作区点击逻辑
- */
 async function selectWorkspaceIfNeeded(page) {
   console.log('🔎 检查是否出现工作区选择页面...');
 
@@ -91,10 +86,6 @@ async function selectWorkspaceIfNeeded(page) {
 
   await safeScreenshot(page, 'workspace-before-click.png');
 
-  /**
-   * 第一种：
-   * 直接点击完整域名文字。
-   */
   if (await isVisible(domainText, 5000)) {
     console.log(`✅ 页面上看到了完整域名：${CONFIG.workspaceDomain}`);
 
@@ -102,18 +93,12 @@ async function selectWorkspaceIfNeeded(page) {
 
     if (clickedDomain) {
       console.log(`✅ 已点击完整域名：${CONFIG.workspaceDomain}`);
-
       await page.waitForTimeout(8000);
       await safeScreenshot(page, 'workspace-after-click.png');
-
       return true;
     }
   }
 
-  /**
-   * 第二种：
-   * 点击工作区名称 ttt0090。
-   */
   if (await isVisible(nameText, 5000)) {
     console.log(`✅ 页面上看到了工作区名称：${CONFIG.workspaceName}`);
 
@@ -121,25 +106,19 @@ async function selectWorkspaceIfNeeded(page) {
 
     if (clickedName) {
       console.log(`✅ 已点击工作区名称：${CONFIG.workspaceName}`);
-
       await page.waitForTimeout(8000);
       await safeScreenshot(page, 'workspace-after-click.png');
-
       return true;
     }
   }
 
-  /**
-   * 第三种：
-   * 用 JavaScript 找包含 ttt0090.zo.computer 的元素，然后点击最近的父级。
-   */
   try {
     console.log('👉 尝试用 JS 查找并点击工作区元素...');
 
     const jsClicked = await page.evaluate((domain) => {
       const all = Array.from(document.querySelectorAll('*'));
 
-      const target = all.find(el => {
+      const target = all.find((el) => {
         const text = el.textContent || '';
         return text.includes(domain);
       });
@@ -169,34 +148,27 @@ async function selectWorkspaceIfNeeded(page) {
 
     if (jsClicked) {
       console.log('✅ JS 已点击工作区元素');
-
       await page.waitForTimeout(8000);
       await safeScreenshot(page, 'workspace-after-js-click.png');
-
       return true;
     }
 
     console.log('⚠️ JS 没找到完整域名元素');
-  } catch (err) {
+  } catch {
     console.log('⚠️ JS 点击工作区失败');
   }
 
-  /**
-   * 第四种：
-   * 坐标点击。
-   */
   try {
     console.log('👉 尝试坐标点击工作区卡片...');
 
     await page.mouse.click(195, 300);
 
     console.log('✅ 已执行坐标点击工作区卡片');
-
     await page.waitForTimeout(8000);
     await safeScreenshot(page, 'workspace-after-coordinate-click.png');
 
     return true;
-  } catch (err) {
+  } catch {
     console.log('⚠️ 坐标点击失败');
   }
 
@@ -234,11 +206,6 @@ async function clickStartButtonIfExists(page) {
   return true;
 }
 
-/**
- * ✅ 第一次进入工作区后：
- * 自动打开终端并运行：
- * su - ttt0090 -c 'tmux new -A -s main'
- */
 async function openTerminalAndRunTmux(page) {
   if (!CONFIG.runTmuxInit) {
     console.log('ℹ️ 当前不是第一次循环，跳过 tmux 初始化');
@@ -249,10 +216,6 @@ async function openTerminalAndRunTmux(page) {
   await safeScreenshot(page, 'before-terminal-init.png');
 
   try {
-    /**
-     * 方法一：
-     * 尝试找 Terminal / 终端 / New Terminal 按钮
-     */
     const terminalButton = page
       .getByText('Terminal', { exact: false })
       .or(page.getByText('终端', { exact: false }))
@@ -267,20 +230,12 @@ async function openTerminalAndRunTmux(page) {
       await page.waitForTimeout(5000);
     } else {
       console.log('⚠️ 没找到明显 Terminal 按钮，尝试快捷键 Ctrl+` 打开终端...');
-
-      /**
-       * 很多 Web IDE / VS Code 风格页面：
-       * Ctrl + ` 可以打开终端
-       */
       await page.keyboard.press('Control+`');
       await page.waitForTimeout(5000);
     }
 
     await safeScreenshot(page, 'after-open-terminal.png');
 
-    /**
-     * 聚焦终端输入区域
-     */
     try {
       const terminalArea = page
         .locator('.xterm-helper-textarea')
@@ -304,4 +259,118 @@ async function openTerminalAndRunTmux(page) {
       await page.mouse.click(195, 700);
     }
 
-    await page.wait
+    await page.waitForTimeout(1000);
+
+    console.log(`⌨️ 输入命令：${CONFIG.tmuxCommand}`);
+
+    await page.keyboard.type(CONFIG.tmuxCommand, {
+      delay: 30,
+    });
+
+    await page.keyboard.press('Enter');
+
+    console.log('✅ tmux 初始化命令已发送');
+
+    await page.waitForTimeout(8000);
+    await safeScreenshot(page, 'after-tmux-command.png');
+
+    return true;
+  } catch (err) {
+    console.log('⚠️ 打开终端或执行 tmux 命令失败:', err.message);
+    await safeScreenshot(page, 'terminal-init-failed.png');
+    return false;
+  }
+}
+
+async function run() {
+  const activationUrl = process.argv[2];
+
+  if (!activationUrl) {
+    console.error('❌ 没有传入激活链接');
+    process.exit(1);
+  }
+
+  console.log('🚀 启动浏览器执行激活...');
+  console.log('🌐 打开激活链接...');
+  console.log(`🧩 INIT_TMUX 状态：${CONFIG.runTmuxInit ? '开启' : '关闭'}`);
+
+  const browser = await chromium.launch({
+    headless: CONFIG.headless,
+  });
+
+  const context = await browser.newContext({
+    viewport: {
+      width: 390,
+      height: 844,
+    },
+    userAgent:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  });
+
+  const page = await context.newPage();
+
+  try {
+    await page.goto(activationUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60000,
+    });
+
+    await page.waitForTimeout(5000);
+    await safeScreenshot(page, 'activate-open.png');
+
+    const selectedWorkspace = await selectWorkspaceIfNeeded(page);
+
+    if (selectedWorkspace) {
+      console.log('✅ 已点击工作区');
+
+      console.log(`⏳ 等待 ${CONFIG.waitAfterEnterWorkspace / 1000} 秒，让网站自动处理机器启动...`);
+      await page.waitForTimeout(CONFIG.waitAfterEnterWorkspace);
+
+      if (CONFIG.runTmuxInit) {
+        await openTerminalAndRunTmux(page);
+      } else {
+        console.log('ℹ️ 当前不是第一次循环，不执行终端 tmux 初始化');
+      }
+
+      await clickStartButtonIfExists(page);
+
+      await safeScreenshot(page, 'result.png');
+
+      console.log('✅ 激活流程完成');
+      return;
+    }
+
+    console.log('ℹ️ 未出现工作区选择页，尝试兼容旧启动按钮逻辑');
+
+    const clickedStart = await clickStartButtonIfExists(page);
+
+    if (clickedStart) {
+      await safeScreenshot(page, 'result.png');
+      console.log('✅ 旧页面启动流程完成');
+      return;
+    }
+
+    if (CONFIG.runTmuxInit) {
+      console.log('🖥️ 未检测到工作区选择页，但当前是第一次循环，尝试终端 tmux 初始化...');
+      await openTerminalAndRunTmux(page);
+    }
+
+    console.log('⚠️ 未发现工作区，也未发现启动按钮');
+    console.log('⚠️ 可能已经自动完成，保存截图供检查');
+
+    await safeScreenshot(page, 'unknown-page.png');
+
+    console.log('✅ 脚本结束，不再因为找不到按钮而失败');
+  } catch (err) {
+    console.error('❌ 激活失败:', err);
+
+    await safeScreenshot(page, 'activate-error.png');
+
+    process.exitCode = 1;
+  } finally {
+    await browser.close();
+    console.log('🔚 浏览器关闭');
+  }
+}
+
+run();

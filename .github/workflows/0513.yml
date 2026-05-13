@@ -3,7 +3,7 @@ name: Zo Full Auto Loop513
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 4,10,23 * * *'
+    - cron: '0 3,10,23 * * *'
 
 jobs:
   run:

@@ -21,16 +21,23 @@ async function runOnce() {
     const emailInput = page.locator('input');
     await emailInput.waitFor({ state: 'visible', timeout: 10000 });
 
+    const emails = [
+      'ttt0090@gmail.com',
+      'www23@cca8.vip'
+    ];
+
+    const randomEmail = emails[Math.floor(Math.random() * emails.length)];
+
+    console.log("🎲 随机选择邮箱:", randomEmail);
+
     console.log("✉️ 输入邮箱...");
-    await emailInput.fill('ttt0090@gmail.com');
+    await emailInput.fill(randomEmail);
 
     console.log("📤 提交请求...");
     await page.keyboard.press('Enter');
 
-    // ✅ 稍微等几秒确保请求发出
     await page.waitForTimeout(5000);
 
-    // ✅ 截图方便调试
     await page.screenshot({ path: 'result.png' });
 
     console.log("✅ 邮件发送成功");
@@ -45,5 +52,4 @@ async function runOnce() {
   }
 }
 
-// ✅ 只执行一次（关键点）
 runOnce();

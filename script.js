@@ -22,7 +22,7 @@ async function runOnce() {
     await emailInput.waitFor({ state: 'visible', timeout: 10000 });
 
     console.log("✉️ 输入邮箱...");
-    await emailInput.fill('ttt0090@gmail.com');
+    await emailInput.fill('ttt55@cca8.vip');
 
     console.log("📤 提交请求...");
     await page.keyboard.press('Enter');
